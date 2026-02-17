@@ -1,12 +1,38 @@
 # Möbius Inversion on Frobenius Fixed Points
+### A Framework for Diagnosing Generalization in Stochastic Gradient Descent
 
-> ⚠️ = Not Established
-
-> Established results (Hall 1935, Rota 1964) are labelled ✓.
+> **Optimization is an inversion problem. The question is always: inversion of what, by what formula, on what domain? On a locally finite poset, the domain determines the answer uniquely.**
 
 ---
 
-## Overview
+> **Legend**
+> - ✓ = Established result (Hall 1935, Rota 1964, Stanley 2012)
+> - ⚠️ = Conjecture / active research — not yet proven
+
+---
+
+## Table of Contents
+
+1. [The Central Picture](#1-the-central-picture)
+2. [Glossary](#2-glossary)
+3. [The Poset of Loss Basins](#3-the-poset-of-loss-basins)
+4. [Frobenius Fixed Points](#4-frobenius-fixed-points)
+5. [The Gradient as a Dirichlet Series](#5-the-gradient-as-a-dirichlet-series)
+6. [Why Möbius and Not Another Inversion](#6-why-möbius-and-not-another-inversion)
+7. [The Consolidation Ratio](#7-the-consolidation-ratio)
+8. [Grokking as a Möbius Phase Transition](#8-grokking-as-a-möbius-phase-transition)
+9. [The Generalization Bound via Frobenius Norm](#9-the-generalization-bound-via-frobenius-norm)
+10. [Implementation and Live Diagnostics](#10-implementation-and-live-diagnostics)
+11. [Topological Structure of the Loss Landscape](#11-topological-structure-of-the-loss-landscape)
+12. [Future Work](#12-future-work)
+13. [Known Weaknesses](#13-known-weaknesses)
+14. [Central Result](#14-central-result)
+15. [Appendices](#15-appendices)
+16. [References](#16-references)
+
+---
+
+## 1. The Central Picture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -25,198 +51,150 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-Stochastic gradient descent does not see individual loss basins — it sees
-their **accumulated sum**. Recovering the true per-basin gradient signal
-from that cumulative observation is exactly **Möbius inversion** on the
-poset of loss basins. Local minima are **Frobenius fixed points** of the
-gradient update operator. Whether a fixed point is genuine (generalizing)
-or an artifact of noise (memorizing) is diagnosed by one scalar:
-the **consolidation ratio** $C_{\alpha}$.
+Stochastic gradient descent does not see individual loss basins — it sees their **accumulated sum**. Recovering the true per-basin gradient signal from that cumulative observation is exactly **Möbius inversion** on the poset of loss basins. Local minima are **Frobenius fixed points** of the gradient update operator. Whether a fixed point is genuine (generalizing) or an artifact of noise (memorizing) is diagnosed by one scalar: the **consolidation ratio C_α**.
 
-**Why Möbius inversion and not Laplace or Fourier?**
-Möbius inversion is the *unique* exact inverse of accumulation on a
-locally finite poset. Continuous-domain transforms (Laplace, Fourier)
-require a group structure the loss landscape does not possess.
-Full argument: [§ IV](#iv-why-möbius-and-not-another-inversion).
+**Why Möbius inversion and not Laplace or Fourier?** Möbius inversion is the unique exact inverse of accumulation on a locally finite poset. Continuous-domain transforms (Laplace, Fourier) require a group structure the loss landscape does not possess. Full uniqueness argument: [§6](#6-why-möbius-and-not-another-inversion).
 
 ---
 
-## Glossary
+## 2. Glossary
 
 | Term | Precise Meaning |
-|------|----------------|
-| **Poset** $( P, \preceq )$ | Set with a partial order: reflexive, antisymmetric, transitive |
-| **Locally finite poset** | Every interval $[x, y] = \{z : x \preceq z \preceq y\}$ is a finite set |
-| **Incidence algebra** $I(P, \mathbb{R})$ | Functions $f : \{(x,y) : x \preceq y\} \to \mathbb{R}$, with product $(f{*}g)(x,y) = \sum_{x \preceq z \preceq y} f(x,z)\,g(z,y)$ |
-| **Zeta function** $\zeta$ | The constant-$1$ element of $I(P,\mathbb{R})$; convolution with $\zeta$ sums over all predecessors |
-| **Möbius function** $\mu$ | The unique convolution inverse of $\zeta$; exactly reverses any accumulation |
-| **Frobenius fixed point** | Parameter state $\theta^{*}$ satisfying $\mathbb{E}[\,\Phi(\theta^{*})\,] = \theta^{*}$ for the update map $\Phi$ |
-| **Consolidation ratio** $C_{\alpha}$ | Scalar $\lVert \mu_{g} \rVert^{2} / \mathrm{Tr}(\Sigma_{g})$ — the gradient signal-to-noise ratio |
-| **Crosscut** | A maximal antichain inside an open interval of a poset; saddle points form natural crosscuts |
-| **Order complex** $\Delta[x,y]$ | Simplicial complex whose simplices are finite chains in the open interval $(x,y)$ |
-| **Boolean defect** $\beta$ | How far the interval $[\hat{0}, \theta^{*}]$ is from a Boolean algebra; $\beta = 0$ means flat minimum |
-| **Basin poset** | Partial order on basins of attraction: $B_{i} \preceq B_{j}$ when $B_{i}$ is adjacent-lower to $B_{j}$ |
+|---|---|
+| Poset `(P, ≼)` | Set with a partial order: reflexive, antisymmetric, transitive |
+| Locally finite poset | Every interval `[x,y] = {z : x ≼ z ≼ y}` is a finite set |
+| Incidence algebra `I(P,R)` | Functions `f : {(x,y) : x ≼ y} → R`, with product `(f*g)(x,y) = Σ_{x≼z≼y} f(x,z)·g(z,y)` |
+| Zeta function `ζ` | The constant-1 element of `I(P,R)`; convolution with `ζ` sums over all predecessors |
+| Möbius function `μ` | The unique convolution inverse of `ζ`; exactly reverses any accumulation |
+| Frobenius fixed point | Parameter state `θ*` satisfying `E[Φ(θ*)] = θ*` for the SGD update map `Φ` |
+| Consolidation ratio `C_α` | Scalar `‖μ_g‖² / Tr(Σ_g)` — the gradient signal-to-noise ratio |
+| Crosscut | A maximal antichain inside an open interval of a poset; saddle points form natural crosscuts |
+| Order complex `Δ[x,y]` | Simplicial complex whose simplices are finite chains in the open interval `(x,y)` |
+| Boolean defect `β` | How far the interval `[0̂, θ*]` is from a Boolean algebra; `β = 0` means flat minimum |
+| Basin poset | Partial order on basins of attraction: `Bᵢ ≼ Bⱼ` when `Bᵢ` is adjacent-lower to `Bⱼ` |
 
 ---
 
-## I. The Poset of Loss Basins
+## 3. The Poset of Loss Basins
 
-### 1.1  What the Poset Is — and What It Is Not
+### 3.1 What the Poset Is — and What It Is Not
 
-A tempting definition: order parameter states by reachability under gradient
-descent, i.e.\ $\theta \preceq \phi$ iff $\phi$ is reachable from $\theta$.
-This fails as a partial order on three counts:
+A tempting definition: order parameter states by reachability under gradient descent. This fails as a partial order on three counts:
 
-1. **Not antisymmetric.** Stochastic dynamics can revisit states, giving
-   $\theta \preceq \phi$ and $\phi \preceq \theta$ with $\theta \neq \phi$.
-2. **Collapses in $\mathbb{R}^{d}$.** With noise, every point is eventually
-   reachable from every other, making all elements equivalent.
-3. **Loses basin structure.** The combinatorially interesting object is the
-   *lattice of basins*, not individual parameter vectors.
+1. **Not antisymmetric.** Stochastic dynamics can revisit states, giving `θ ≼ φ` and `φ ≼ θ` with `θ ≠ φ`.
+2. **Collapses in R^d.** With noise, every point is eventually reachable from every other, making all elements equivalent.
+3. **Loses basin structure.** The combinatorially interesting object is the lattice of basins, not individual parameter vectors.
 
-The correct domain is the set of **attraction basins**.
+The correct domain is the **set of attraction basins**.
 
-### 1.2  The Basin Poset (Formal Definition)
+### 3.2 The Basin Poset (Formal Definition)
 
-Let $\bar{L}(\theta) = \mathbb{E}_{\mathcal{B}}[\,L(\theta;\mathcal{B})\,]$
-be the expected loss. Each basin of attraction $B_{i}$ has a unique
-attractor:
-
-$$\theta^{*}_{i} \;=\; \operatorname*{arg\,min}_{\,\theta \,\in\, B_{i}} \bar{L}(\theta)$$
-
-> Note: $\theta^{*}_{i}$ uses braces $\{i\}$ to clarify the subscript $i$
-> is separate from the superscript $*$. All multi-level scripts in this
-> document follow this convention.
-
-Define the **basin partial order** by:
-
-$$B_{i} \preceq B_{j}
-  \;\iff\;
-  \bar{L}\!\left(\theta^{*}_{i}\right) \leq \bar{L}\!\left(\theta^{*}_{j}\right)
-  \;\text{ and }\;
-  B_{i} \subseteq \overline{B_{j}}$$
-
-The closure condition $B_{i} \subseteq \overline{B_{j}}$ means $B_{i}$
-lies on the boundary of $B_{j}$: one can transition from $B_{j}$ to $B_{i}$
-by crossing a saddle point. This gives a well-defined partial order.
+Let `L̄(θ) = E_B[L(θ; B)]` be the expected loss. Each basin of attraction `Bᵢ` has a unique attractor:
 
 ```
-                EXAMPLE BASIN POSET
-                (Hasse diagram — lower = lower loss)
+θ*ᵢ  =  argmin_{θ ∈ Bᵢ}  L̄(θ)
+```
 
-         B₃  ← highest loss basin (local max region)
-        ╱  ╲
-       B₁   B₂   ← intermediate basins (saddle-adjacent)
-        ╲  ╱
-         B₀  ← global minimum basin
+Define the basin partial order by:
+
+```
+Bᵢ ≼ Bⱼ  ⟺  L̄(θ*ᵢ) ≤ L̄(θ*ⱼ)  and  Bᵢ ⊆ cl(Bⱼ)
+```
+
+The closure condition `Bᵢ ⊆ cl(Bⱼ)` means `Bᵢ` lies on the boundary of `Bⱼ`: one can transition from `Bⱼ` to `Bᵢ` by crossing a saddle point. This gives a well-defined partial order.
+
+```
+        EXAMPLE BASIN POSET
+        (Hasse diagram — lower = lower loss)
+
+             B₃   ← highest loss basin
+            ╱  ╲
+           B₁   B₂   ← intermediate basins (saddle-adjacent)
+            ╲  ╱
+             B₀   ← global minimum basin
 
   This is a diamond (non-Boolean). The Möbius values are:
     μ(B₀,B₁) = -1    μ(B₀,B₂) = -1
     μ(B₀,B₃) = +1    (two parallel paths reinforce)
 ```
 
-**Local finiteness**: For generic smooth $\bar{L}$ (Morse condition), every
-interval $[B_{i}, B_{j}]$ contains finitely many basins — Morse theory
-guarantees finitely many critical points between any two level sets.
-The incidence algebra $I(\mathrm{Fix}(\Phi),\mathbb{R})$ is therefore
-well-defined.
+**Local finiteness:** For generic smooth `L̄` (Morse condition), every interval `[Bᵢ, Bⱼ]` contains finitely many basins — Morse theory [Milnor 1963] guarantees finitely many critical points between any two level sets. The incidence algebra `I(Fix(Φ), R)` is therefore well-defined.
 
-> **Non-Morse case (ReLU networks)**: ReLU losses are piecewise linear with
-> degenerate critical sets. Local finiteness requires a separate argument;
-> we assume it throughout and flag it as an open problem.
+> ⚠️ **Non-Morse case (ReLU networks):** ReLU losses are piecewise linear with degenerate critical sets. Local finiteness requires a separate argument; we assume it throughout and flag it as an open problem.
 
-### 1.3  The Incidence Algebra
+### 3.3 The Incidence Algebra
 
-For a locally finite poset $P$, the **incidence algebra** $I(P,\mathbb{R})$
-consists of functions $f$ on comparable pairs, with multiplication by
-interval convolution:
+For a locally finite poset `P`, the **incidence algebra** `I(P, R)` consists of functions `f` on comparable pairs, with multiplication by interval convolution:
 
-$$( f * g )(x, y)
-  \;=\;
-  \sum_{x \,\preceq\, z \,\preceq\, y} f(x, z) \cdot g(z, y)$$
+```
+(f * g)(x, y)  =  Σ_{x ≼ z ≼ y}  f(x,z) · g(z,y)
+```
 
 Two distinguished elements:
 
 | Element | Formula | Role |
-|---------|---------|------|
-| $\zeta$ | $\zeta(x,y) = 1$ for all $x \preceq y$ | "Sum over all predecessors" |
-| $\mu$ | Defined by $\mu * \zeta = \delta$ | Exact inverse of $\zeta$-convolution |
-| $\delta$ | $\delta(x,y) = [x = y]$ | Identity element (Kronecker) |
+|---|---|---|
+| `ζ` | `ζ(x,y) = 1` for all `x ≼ y` | "Sum over all predecessors" |
+| `μ` | Defined by `μ * ζ = δ` | Exact inverse of ζ-convolution |
+| `δ` | `δ(x,y) = [x = y]` | Identity element (Kronecker) |
 
-The **Möbius function** satisfies the recurrence:
+The Möbius function satisfies the recurrence:
 
-$$\mu(x, x) = 1
-\qquad
-\mu(x, y) = -\!\!\sum_{\,x \,\preceq\, z \,\prec\, y} \mu(x, z)
-\quad\text{for } x \prec y$$
+```
+μ(x,x)  =  1
+μ(x,y)  =  −Σ_{x ≼ z ≺ y}  μ(x,z)     for x ≺ y
+```
 
-### 1.4  Möbius Inversion Theorem
+### 3.4 Möbius Inversion Theorem ✓
 
-**Theorem** ✓ (Rota 1964): For any functions $f, g : P \to \mathbb{R}$,
+**Theorem** (Rota 1964): For any functions `f, g : P → R`,
 
-$$g(y) = \sum_{x \,\preceq\, y} f(x)
-\quad\Longrightarrow\quad
-f(y) = \sum_{x \,\preceq\, y} \mu(x, y)\, g(x)$$
+```
+g(y) = Σ_{x ≼ y} f(x)   ⟹   f(y) = Σ_{x ≼ y} μ(x,y) · g(x)
+```
 
-**Proof**: Substituting the inversion formula into the forward sum and
-applying $\mu * \zeta = \delta$ gives $g(y) = \sum_{x} f(x) \cdot 1 = g(y)$.
-The key is that $\mu$ is the unique left-inverse of $\zeta$ in $I(P,\mathbb{R})$
-(Neumann series argument: $\zeta = \delta + (\zeta - \delta)$ with
-$(\zeta - \delta)^{n} = 0$ for $n >$ length of the longest chain in any
-finite interval). ∎
+**Proof:** Substituting the inversion formula into the forward sum and applying `μ * ζ = δ` gives `g(y) = Σ_x f(x) · 1 = g(y)`. The key is that `μ` is the unique left-inverse of `ζ` in `I(P,R)` (Neumann series argument: `ζ = δ + (ζ−δ)` with `(ζ−δ)ⁿ = 0` for `n > length of the longest chain in any finite interval`). ∎
 
 **Translation to learning:**
 
 ```
-  WHAT SGD OBSERVES:         WHAT WE WANT:
-  ┌──────────────────────┐   ┌──────────────────────────────┐
-  │ g(B) = Σ f(A)        │   │ f(B) = Σ μ(A,B) · g(A)      │
-  │       A ≼ B           │   │       A ≼ B                   │
-  │                      │   │                              │
-  │ Accumulated gradient │   │ True per-basin gradient      │
-  │ signal — noisy,      │   │ contribution — what Möbius   │
-  │ smeared over basins  │   │ inversion recovers exactly   │
-  └──────────────────────┘   └──────────────────────────────┘
+  WHAT SGD OBSERVES:           WHAT WE WANT:
+  ┌──────────────────────┐     ┌──────────────────────────────┐
+  │ g(B) = Σ_{A≼B} f(A) │     │ f(B) = Σ_{A≼B} μ(A,B)·g(A) │
+  │                      │     │                              │
+  │ Accumulated gradient │     │ True per-basin gradient      │
+  │ signal — noisy,      │     │ contribution — what Möbius   │
+  │ smeared over basins  │     │ inversion recovers exactly   │
+  └──────────────────────┘     └──────────────────────────────┘
 ```
 
 ---
 
-## II. Frobenius Fixed Points
+## 4. Frobenius Fixed Points
 
-### 2.1  The Gradient Update Operator
+### 4.1 The Gradient Update Operator
 
-The SGD update with learning rate $\eta$ and mini-batch $\mathcal{B}$:
+The SGD update with learning rate `η` and mini-batch `B`:
 
-$$\Phi(\theta) \;=\; \theta - \eta\,\nabla L(\theta;\,\mathcal{B})$$
+```
+Φ(θ)  =  θ − η · ∇L(θ; B)
+```
 
-A **Frobenius fixed point** is any $\theta^{*}$ satisfying:
+A **Frobenius fixed point** is any `θ*` satisfying:
 
-$$\mathbb{E}_{\mathcal{B}}\!\left[\Phi(\theta^{*})\right] = \theta^{*}
-\;\iff\;
-\mathbb{E}_{\mathcal{B}}\!\left[\nabla L(\theta^{*};\,\mathcal{B})\right] = 0$$
+```
+E_B[Φ(θ*)]  =  θ*   ⟺   E_B[∇L(θ*; B)]  =  0
+```
 
-This is precisely a **stationary point of the expected loss** $\bar{L}$.
+This is precisely a stationary point of the expected loss `L̄`.
 
-### 2.2  The Frobenius Analogy and Its Scope
+### 4.2 The Frobenius Analogy and Its Scope
 
-In characteristic-$p$ algebraic geometry, the **Frobenius endomorphism**
-is $\mathrm{Fr}: x \mapsto x^{p}$. Its fixed point set is $\mathrm{Fix}(\mathrm{Fr}) = \mathbb{F}_{p}$:
-a discrete set carved from a continuous ambient space $\overline{\mathbb{F}_{p}}$
-by a purely algebraic condition. We borrow this name because $\mathrm{Fix}(\Phi)$
-has the same character — isolated equilibria of a self-map on $\mathbb{R}^{d}$.
+In characteristic-`p` algebraic geometry, the Frobenius endomorphism is `Fr: x ↦ xᵖ`. Its fixed point set is `Fix(Fr) = F_p`: a discrete set carved from a continuous ambient space `F̄_p` by a purely algebraic condition [Weil 1949]. We borrow this name because `Fix(Φ)` has the same character — isolated equilibria of a self-map on `R^d`.
 
-**Why not Banach's fixed-point theorem instead?**
+**Why not Banach's fixed-point theorem instead?** The Banach contraction theorem gives *existence*: if `‖∇Φ‖_op < 1` (equivalently `η · λ_max(Hess[L̄]) < 1`), a unique fixed point exists by iteration. The Frobenius framing adds exactly one thing Banach cannot: it connects to the **counting of fixed points** via the basin zeta function `Z_L(s)` (§5), enabling a Dirichlet-series analysis of convergence rates. Both framings are valid and complementary.
 
-The Banach contraction theorem gives existence: if $\lVert\nabla\Phi\rVert_{\mathrm{op}} < 1$
-(equivalently $\eta\,\lambda_{\max}(\mathrm{Hess}[\bar{L}]) < 1$), a unique
-fixed point exists by iteration. This is elementary and rigorous.
-
-The Frobenius framing adds exactly one thing Banach cannot: it connects to
-the **counting of fixed points** via the basin zeta function $Z_{L}(s)$
-(§ III), enabling a Dirichlet-series analysis of convergence rates. Both
-framings are valid and complementary.
-
-### 2.3  Two Kinds of Fixed Point
+### 4.3 Two Kinds of Fixed Point
 
 ```
   FIXED POINT TAXONOMY
@@ -233,64 +211,54 @@ framings are valid and complementary.
   └─────────────────────┴────────────────────┴────────────────────────┘
 ```
 
-The consolidation ratio $C_{\alpha}$ (§ V) is the diagnostic that
-distinguishes the two rows.
+The consolidation ratio `C_α` (§7) is the diagnostic that distinguishes the two rows.
 
 ---
 
-## III. The Gradient as a Dirichlet Series
+## 5. The Gradient as a Dirichlet Series
 
-### 3.1  Construction
+### 5.1 Construction
 
-Index training steps by $n \in \mathbb{N}$. Let
+Index training steps by `n ∈ ℕ`. Let
 
-$$a_{n} \;=\; \mathbb{E}\!\left[\,\lVert\nabla L(\theta^{(n)})\rVert^{2}\,\right]$$
+```
+aₙ  =  E[‖∇L(θ(n))‖²]
+```
 
-be the expected squared gradient norm at step $n$.
-The **Dirichlet series** of the training trajectory is:
+be the expected squared gradient norm at step `n`. The **Dirichlet series** of the training trajectory is:
 
-$$\mathcal{L}(s) \;=\; \sum_{n=1}^{\infty} \frac{a_{n}}{n^{s}}, \qquad s \in \mathbb{C}$$
+```
+L(s)  =  Σ_{n=1}^∞  aₙ / nˢ,    s ∈ ℂ
+```
 
-The **abscissa of absolute convergence**:
+The **abscissa of absolute convergence:**
 
-$$\sigma_{c}
-  \;=\;
-  \limsup_{n \to \infty}
-  \frac{\log\!\left(\sum_{k \leq n} a_{k}\right)}{\log n}$$
+```
+σ_c  =  limsup_{n→∞}  log(Σ_{k≤n} aₖ) / log(n)
+```
 
 classifies training behaviour:
 
-$$\sigma_{c} < 1
-  \;\implies\;
-  \sum_{n} \frac{a_{n}}{n} < \infty
-  \;\implies\;
-  \text{Robbins–Monro condition satisfied, training converges}$$
+```
+σ_c < 1  ⟹  Σₙ aₙ/n < ∞  ⟹  Robbins–Monro condition satisfied, training converges
+σ_c ≥ 1  ⟹  gradient norms persist; training oscillates or diverges
+```
 
-$$\sigma_{c} \geq 1
-  \;\implies\;
-  \text{gradient norms persist; training oscillates or diverges}$$
+> ⚠️ In practice `σ_c` must be estimated from a finite window of observed `aₙ` values. The connection to convergence holds under standard regularity: bounded gradient variance, step sizes satisfying `Σ ηₙ = ∞` and `Σ ηₙ² < ∞` [Robbins & Monro 1951].
 
-> ⚠️ In practice $\sigma_{c}$ must be estimated from a finite window
-> of observed $a_{n}$ values. The connection to convergence holds under
-> standard regularity: bounded gradient variance, step sizes satisfying
-> $\sum \eta_{n} = \infty$ and $\sum \eta_{n}^{2} < \infty$.
+### 5.2 The Basin Zeta Function
 
-### 3.2  The Basin Zeta Function
+```
+Z_L(s)  =  Σᵢ  exp(−s · L̄(θ*ᵢ))
+```
 
-$$Z_{L}(s)
-  \;=\;
-  \sum_{i} \exp\!\left(-s\cdot \bar{L}\!\left(\theta^{*}_{i}\right)\right)$$
+This enumerates all fixed points (basins) weighted by their loss depth. If basins are "multiplicatively independent" — no long-range correlations between distinct minima — the sum factorizes into an **Euler product**:
 
-This enumerates all fixed points (basins) weighted by their loss depth.
-If basins are "multiplicatively independent" — no long-range correlations
-between distinct minima — the sum factorizes into an Euler product:
+```
+Z_L(s)  =?  Π_{irred. i}  1 / (1 − exp(−s · L̄(θ*ᵢ)))
+```
 
-$$Z_{L}(s)
-  \;\stackrel{?}{=}\;
-  \prod_{\text{irred. } i}
-  \frac{1}{1 - \exp\!\left(-s \cdot \bar{L}\!\left(\theta^{*}_{i}\right)\right)}$$
-
-This is a testable but currently unverified condition for neural networks.
+> ⚠️ This is a testable but currently unverified condition for neural networks.
 
 ```
   ANALOGY TABLE: RIEMANN ZETA ↔ BASIN ZETA
@@ -308,44 +276,33 @@ This is a testable but currently unverified condition for neural networks.
 
 ---
 
-## IV. Why Möbius and Not Another Inversion
+## 6. Why Möbius and Not Another Inversion
 
-This section directly defends the choice of Möbius inversion against
-every natural alternative. The defence is not aesthetic — it is a
-uniqueness argument.
+This section directly defends the choice of Möbius inversion against every natural alternative. The defence is not aesthetic — it is a **uniqueness argument**.
 
-### 4.1  vs. Laplace Transform
+### 6.1 vs. Laplace Transform
 
-The Laplace inversion theorem states:
-if $\hat{f}(s) = \int_{0}^{\infty} f(t)\,e^{-st}\,dt$, then
-$f(t)$ is recovered by the Bromwich integral.
+The Laplace inversion theorem states: if `f̂(s) = ∫₀^∞ f(t) e^{-st} dt`, then `f(t)` is recovered by the Bromwich integral.
 
-**Why this does not apply here:**
+**Why this does not apply here:** The Laplace convolution theorem requires the domain to carry a continuous group `(ℝ, +)` or `(ℝ>0, ×)` so that `f̂*ĝ = f̂·ĝ` holds. The poset of loss basins has no such group structure — there is no natural "translation" that maps one basin to another. Without the group, the convolution theorem fails entirely and Laplace inversion is simply **undefined** on this domain.
 
-The Laplace convolution theorem requires the domain to carry a
-**continuous group** $(\mathbb{R}, +)$ or $(\mathbb{R}_{>0}, \times)$
-so that $\widehat{f * g} = \hat{f} \cdot \hat{g}$ holds. The poset of
-loss basins has no such group structure — there is no natural
-"translation" that maps one basin to another. Without the group,
-the convolution theorem fails entirely and Laplace inversion is
-simply undefined on this domain.
+**Secondary issue:** The inverse Laplace transform is numerically ill-posed (exponential amplification of high-frequency errors). Möbius inversion on a finite poset is exact and combinatorial — no regularization, no numerical stability issue.
 
-**Secondary issue:** The inverse Laplace transform is
-numerically ill-posed (exponential amplification of high-frequency
-errors). Möbius inversion on a finite poset is exact and
-combinatorial — no regularisation, no numerical stability issue.
+### 6.2 vs. Fourier Analysis
 
-### 4.2  vs. Fourier Analysis
+Fourier inversion requires a locally compact abelian group (Pontryagin duality). Parameter space `R^d` has this structure. But the poset of basins does not: there is no group operation on the set `{B₀, B₁, B₂, ...}` consistent with the partial order.
 
-Fourier inversion requires a **locally compact abelian group** (Pontryagin
-duality). Parameter space $\mathbb{R}^{d}$ has this structure. But the
-*poset of basins* does not: there is no group operation on the set
-$\{B_{0}, B_{1}, B_{2}, \ldots\}$ consistent with the partial order.
+Fourier methods are valid tools for the **local geometry** of a single minimum (Hessian spectral density, loss curvature analysis). They cannot access the global combinatorial structure of how basins relate to each other. Möbius inversion operates on exactly that global structure.
 
-Fourier methods are valid tools for the **local geometry** of a single
-minimum (Hessian spectral density, loss curvature analysis). They cannot
-access the global combinatorial structure of how basins relate to each
-other. Möbius inversion operates on exactly that global structure.
+### 6.3 vs. Natural Gradient (Matrix Inversion)
+
+Natural gradient [Amari 1998] inverts the Fisher information matrix `F` to correct for parameter-space curvature at each step:
+
+```
+Δθ  =  −F⁻¹ ∇L
+```
+
+This inverts the **local metric** for a single gradient step. Möbius inversion inverts the **global accumulation** across many steps and many basins. The two operations address orthogonal problems and can in principle be composed: natural gradient corrects each step, Möbius corrects the accumulated history.
 
 ```
   SCOPE COMPARISON
@@ -366,58 +323,33 @@ other. Möbius inversion operates on exactly that global structure.
   └──────────────┴────────────────────────┴──────────────────────────┘
 ```
 
-### 4.3  vs. Natural Gradient (Matrix Inversion)
+### 6.4 The Uniqueness Theorem ✓
 
-Natural gradient (Amari 1998) inverts the Fisher information matrix $F$ to
-correct for parameter-space curvature at each step:
+**Theorem** (Rota 1964): In any incidence algebra `I(P, R)` over a locally finite poset, the Möbius function `μ` is the **unique two-sided inverse** of the zeta function `ζ`.
 
-$$\Delta\theta = -F^{-1}\nabla L$$
+**Proof:** The set of functions `{f : f(x,x) ≠ 0 for all x}` forms a group under `*` in `I(P,R)` (because local finiteness makes all products finite sums, and the diagonal entry is invertible in `R`). Since `ζ(x,x) = 1 ≠ 0`, `ζ` is in this group, so it has a unique two-sided inverse. That inverse, defined by the recurrence in §3.3, is `μ` by construction. ∎
 
-This inverts the **local metric** for a single gradient step.
-Möbius inversion inverts the **global accumulation** across many steps and
-many basins. The two operations address orthogonal problems and can in
-principle be composed: natural gradient corrects each step, Möbius corrects
-the accumulated history.
-
-### 4.4  The Uniqueness Theorem ✓
-
-**Theorem**: In any incidence algebra $I(P,\mathbb{R})$ over a locally
-finite poset, the Möbius function $\mu$ is the **unique** two-sided
-inverse of the zeta function $\zeta$.
-
-**Proof**: The set of functions $\{f : f(x,x) \neq 0 \text{ for all } x\}$
-forms a group under $*$ in $I(P,\mathbb{R})$ (because local finiteness
-makes all products finite sums, and the diagonal entry is invertible in
-$\mathbb{R}$). Since $\zeta(x,x) = 1 \neq 0$, $\zeta$ is in this group,
-so it has a unique two-sided inverse. That inverse, defined by the
-recurrence in §1.3, is $\mu$ by construction. ∎
-
-**Consequence**: There is no other exact inversion formula for
-"sum over predecessors" on a general locally finite poset.
-Möbius is the *only* option.
+**Consequence:** There is no other exact inversion formula for "sum over predecessors" on a general locally finite poset. **Möbius is the only option.**
 
 ---
 
-## V. The Consolidation Ratio
+## 7. The Consolidation Ratio
 
-### 5.1  Definition
+### 7.1 Definition
 
-Given $n$ gradient samples $\{g_{i}\}_{i=1}^{n}$, compute:
+Given `n` gradient samples `{gᵢ}ᵢ₌₁ⁿ`, compute:
 
-$$\mu_{g} \;=\; \frac{1}{n}\sum_{i=1}^{n} g_{i}
-\qquad\qquad
-\Sigma_{g} \;=\; \frac{1}{n-1}\sum_{i=1}^{n}
-  (g_{i} - \mu_{g})(g_{i} - \mu_{g})^{\top}$$
+```
+μ_g  =  (1/n) Σᵢ gᵢ
+
+Σ_g  =  (1/(n−1)) Σᵢ (gᵢ − μ_g)(gᵢ − μ_g)ᵀ
+```
 
 The **consolidation ratio** is:
 
-$$\boxed{
-  C_{\alpha}
-  \;=\;
-  \frac{\lVert \mu_{g} \rVert^{2}}{\mathrm{Tr}(\Sigma_{g})}
-  \;=\;
-  \frac{\text{signal power}}{\text{noise power}}
-}$$
+```
+C_α  =  ‖μ_g‖² / Tr(Σ_g)  =  signal power / noise power
+```
 
 ```
   WHAT EACH TERM MEASURES
@@ -439,67 +371,46 @@ $$\boxed{
   └─────────────────────────────────────────────────────────────┘
 ```
 
-### 5.2  Coordinate Invariance — Corrected Account
+### 7.2 Coordinate Invariance — Corrected Account
 
-The unweighted $C_{\alpha}$ is **not** invariant under arbitrary smooth
-reparameterizations. Under $\phi = h(\theta)$ with Jacobian
-$J = \partial\phi/\partial\theta$:
+The unweighted `C_α` is **not** invariant under arbitrary smooth reparameterizations. Under `φ = h(θ)` with Jacobian `J = ∂φ/∂θ`:
 
-$$\mu_{\phi} = J\,\mu_{\theta},
-\qquad
-\Sigma_{\phi} = J\,\Sigma_{\theta}\,J^{\top}$$
+```
+μ_φ  =  J · μ_θ
+Σ_φ  =  J · Σ_θ · Jᵀ
 
-$$C_{\alpha}^{\phi}
-  \;=\;
-  \frac{\mu_{\theta}^{\top} J^{\top} J\, \mu_{\theta}}
-       {\mathrm{Tr}(J\,\Sigma_{\theta}\,J^{\top})}$$
+C_α^φ  =  μ_θᵀ Jᵀ J μ_θ / Tr(J Σ_θ Jᵀ)
+```
 
-This equals $C_{\alpha}^{\theta}$ **only when $J$ is orthogonal** (the
-Jacobians cancel in numerator and denominator). For a true geometric
-invariant, use the **Fisher-weighted version**:
+This equals `C_α^θ` only when `J` is orthogonal. For a true geometric invariant, use the **Fisher-weighted version**:
 
-$$C_{\alpha}^{F}
-  \;=\;
-  \frac{\mu_{g}^{\top} F^{-1} \mu_{g}}
-       {\mathrm{Tr}(F^{-1}\Sigma_{g})}$$
+```
+C_α^F  =  μ_gᵀ F⁻¹ μ_g / Tr(F⁻¹ Σ_g)
+```
 
-where $F = \mathbb{E}[\,\nabla\!\log p \cdot (\nabla\!\log p)^{\top}\,]$
-is the Fisher information matrix. This is invariant because $F$ transforms
-as $F \mapsto (J^{-1})^{\top} F\, J^{-1}$, cancelling both Jacobians exactly.
+where `F = E[∇log p · (∇log p)ᵀ]` is the Fisher information matrix [Amari 1998]. This is invariant because `F` transforms as `F ↦ (J⁻¹)ᵀ F J⁻¹`, cancelling both Jacobians exactly.
 
-The unweighted $C_{\alpha}$ remains a useful, cheap diagnostic for
-practitioners who do not have access to $F$, but it depends on
-parameterization.
+The unweighted `C_α` remains a useful, cheap diagnostic for practitioners who do not have access to `F`, but it depends on parameterization.
 
-### 5.3  The Inversion Threshold ⚠️
+### 7.3 The Inversion Threshold ⚠️
 
-**Claim**: $C_{\alpha} > 1$ if and only if the Möbius inversion of
-accumulated gradients converges — i.e.\ the true gradient direction is
-recoverable from the noisy cumulative signal.
+**Claim:** `C_α > 1` if and only if the Möbius inversion of accumulated gradients converges — i.e. the true gradient direction is recoverable from the noisy cumulative signal.
 
-**Proof sketch**: Decompose each sample as
-$g_{i} = \mu_{g} + \varepsilon_{i}$ with $\mathbb{E}[\varepsilon_{i}] = 0$.
-After $n$ steps the accumulated sum is
+**Proof sketch:** Decompose each sample as `gᵢ = μ_g + εᵢ` with `E[εᵢ] = 0`. After `n` steps the accumulated sum is:
 
-$$G_{n} \;=\; n\,\mu_{g} \;+\; \sum_{i=1}^{n} \varepsilon_{i}$$
+```
+Gₙ  =  n·μ_g  +  Σᵢ₌₁ⁿ εᵢ
+```
 
-By the law of large numbers, $G_{n}/n \to \mu_{g}$.
-The signal-to-noise ratio at step $n$ scales as
-$n\,\lVert\mu_{g}\rVert^{2} / \lVert\sum \varepsilon_{i}\rVert^{2}$.
-When $C_{\alpha} > 1$ this ratio grows without bound; the mean gradient
-dominates and the inversion is recoverable. When $C_{\alpha} < 1$ the noise
-term dominates at every finite $n$.
+By the law of large numbers, `Gₙ/n → μ_g`. The signal-to-noise ratio at step `n` scales as `n·‖μ_g‖² / ‖Σεᵢ‖²`. When `C_α > 1` this ratio grows without bound; the mean gradient dominates and the inversion is recoverable. When `C_α < 1` the noise term dominates at every finite `n`.
 
-**Gap in the proof**: This sketch treats $C_{\alpha}$ as fixed.
-In reality $C_{\alpha}$ evolves during training. A rigorous treatment
-requires a martingale argument (see §X.1) showing that once $C_{\alpha}$
-crosses $1$, the dynamics are stable above that threshold.
+> ⚠️ **Gap in the proof:** This sketch treats `C_α` as fixed. In reality `C_α` evolves during training. A rigorous treatment requires a martingale argument (§12.1) showing that once `C_α` crosses 1, the dynamics are stable above that threshold.
 
 ---
 
-## VI. Grokking as a Möbius Phase Transition
+## 8. Grokking as a Möbius Phase Transition
 
-### 6.1  The Two Phases Explained
+### 8.1 The Two Phases Explained
 
 ```
   PHASE DIAGRAM OF TRAINING
@@ -520,129 +431,95 @@ crosses $1$, the dynamics are stable above that threshold.
   ─────────────────────────────────────────────────────────
 ```
 
-### 6.2  The Möbius Inversion Formula for Grokking
+### 8.2 The Möbius Inversion Formula for Grokking
 
-Let $F_{k}(\theta) = \sum_{j \leq k} L(\theta^{(j)})$ be the accumulated
-loss up to step $k$. The running Möbius inversion at step $n$ is:
+Let `Fₖ(θ) = Σⱼ≤ₖ L(θ⁽ʲ⁾)` be the accumulated loss up to step `k`. The running Möbius inversion at step `n` is:
 
-$$L_{\mathrm{true}}(\theta)
-  \;=\;
-  \sum_{k \leq n} \mu(k, n) \cdot F_{k}(\theta)$$
+```
+L_true(θ)  =  Σ_{k≤n}  μ(k, n) · Fₖ(θ)
+```
 
-When $C_{\alpha} > 1$ this sum converges as $n \to \infty$ to the true
-expected loss $\bar{L}(\theta)$. When $C_{\alpha} < 1$ it diverges.
-**Grokking is the moment $C_{\alpha}$ crosses $1$.**
+When `C_α > 1` this sum converges as `n → ∞` to the true expected loss `L̄(θ)`. When `C_α < 1` it diverges. **Grokking is the moment `C_α` crosses 1.**
 
-### 6.3  Illustrative Training Trajectory
+### 8.3 Illustrative Training Trajectory
 
-> ⚠️ The $C_{\alpha}$ values below are **qualitative estimates** consistent
-> with Power et al.\ (2022) and are not measurements from a published
-> experiment. The live demo in §VIII shows how to measure them on a
-> real model.
+> ⚠️ The `C_α` values below are qualitative estimates consistent with Power et al. (2022) and are not measurements from a published experiment. The live demo in §10.2 shows how to measure them on a real model.
 
-| Epoch | $C_{\alpha}$ (est.) | Phase | Observed event |
-|------:|--------------------:|-------|----------------|
-| 0 | ~0.05 | Noise-dominated | Random initialisation |
-| 1 000 | ~0.31 | Noise-dominated | Train 100 %, test 23 % |
-| 2 500 | ~0.89 | Near-critical | Test accuracy rising slowly |
-| 2 600 | ~1.00 | **Critical** | **Rapid generalisation onset** |
-| 3 000 | ~1.10 | Signal-dominated | Test accuracy ≈ 100 % |
+| Epoch | C_α (est.) | Phase | Observed Event |
+|---|---|---|---|
+| 0 | ~0.05 | Noise-dominated | Random initialization |
+| 1,000 | ~0.31 | Noise-dominated | Train 100%, test 23% |
+| 2,500 | ~0.89 | Near-critical | Test accuracy rising slowly |
+| 2,600 | ~1.00 | Critical | Rapid generalization onset |
+| 3,000 | ~1.10 | Signal-dominated | Test accuracy ≈ 100% |
 
 ---
 
-## VII. The Generalization Bound via Frobenius Norm
+## 9. The Generalization Bound via Frobenius Norm
 
-### 7.1  The Frobenius Deviation
+### 9.1 The Frobenius Deviation
 
-At a fixed point $\theta^{*}$, the gradient update operator is locally
-approximated by its linearisation. Compute:
+At a fixed point `θ*`, the gradient update operator is locally approximated by its linearization:
 
-$$\lVert \Phi - \mathrm{Id} \rVert_{F}
-  \;=\;
-  \lVert \eta \cdot \mathrm{Hess}[\bar{L}](\theta^{*}) \rVert_{F}
-  \;=\;
-  \eta \left(\sum_{i,j} H_{ij}^{2}\right)^{1/2}$$
+```
+‖Φ − Id‖_F  =  ‖η · Hess L̄‖_F  =  η · (Σᵢⱼ Hᵢⱼ²)^{1/2}
+```
 
-where $H_{ij}$ are the entries of the Hessian matrix of $\bar{L}$ at
-$\theta^{*}$. This quantity is:
-
+where `Hᵢⱼ` are the entries of the Hessian matrix of `L̄` at `θ*`. This quantity is:
 - **Zero** at a perfectly flat minimum (zero Hessian)
 - **Large** at a sharp minimum (large curvature)
-- **Scale-dependent** on $\eta$: a larger learning rate makes any
-  minimum look sharper by this measure
+- **Scale-dependent** on `η`: a larger learning rate makes any minimum appear sharper by this measure
 
-### 7.2  The Generalization Bound ⚠️
+### 9.2 The Generalization Bound ⚠️
 
-**Conjecture** (Fixed-Point Generalization Bound):
+**Conjecture (Fixed-Point Generalization Bound):**
 
-$$\mathcal{G}(\theta^{*})
-  \;\lesssim\;
-  \frac{\lVert \Phi - \mathrm{Id} \rVert_{F}}
-       {\sqrt{n_{\mathrm{train}}} \cdot C_{\alpha}}$$
+```
+G(θ*)  ≲  ‖Φ − Id‖_F / (n_train · C_α)
+```
 
-where $\mathcal{G}(\theta^{*}) = L_{\mathrm{test}}(\theta^{*}) - L_{\mathrm{train}}(\theta^{*})$
-is the generalisation gap and $n_{\mathrm{train}}$ is the number of
-training samples.
-
-**Reading the bound:**
+where `G(θ*) = L_test(θ*) − L_train(θ*)` is the generalization gap and `n_train` is the number of training samples.
 
 ```
   ┌──────────────────────┬───────────────────────────────────┐
-  │ Factor               │ Effect on generalisation          │
+  │ Factor               │ Effect on generalization          │
   ├──────────────────────┼───────────────────────────────────┤
-  │ ‖Φ - Id‖_F ↓ (flat)  │ Bound shrinks → better gen.      │
-  │ ‖Φ - Id‖_F ↑ (sharp) │ Bound grows  → worse gen.        │
+  │ ‖Φ-Id‖_F ↓ (flat)   │ Bound shrinks → better gen.      │
+  │ ‖Φ-Id‖_F ↑ (sharp)  │ Bound grows  → worse gen.        │
   ├──────────────────────┼───────────────────────────────────┤
-  │ C_α ↑ (signal)       │ Bound shrinks → better gen.      │
-  │ C_α ↓ (noise)        │ Bound grows  → minimum may be    │
+  │ C_α ↑ (signal)      │ Bound shrinks → better gen.      │
+  │ C_α ↓ (noise)       │ Bound grows  → minimum may be    │
   │                      │ noise artifact, not robust        │
   ├──────────────────────┼───────────────────────────────────┤
   │ n_train ↑ (more data)│ Bound shrinks → √n improvement   │
   └──────────────────────┴───────────────────────────────────┘
 ```
 
-**Proof sketch**: $\lVert \Phi - \mathrm{Id} \rVert_{F}$ controls the
-PAC-Bayes sharpness term (Dziugaite & Roy 2017; Foret et al.\ 2021): a
-flat minimum is robust to small perturbations of $\theta^{*}$, giving tight
-train-to-test transfer. The $C_{\alpha}^{-1}$ factor penalises
-noise-artifact minima — their existence depends on the specific noise
-structure of the training distribution, not on the true data-generating
-process, so they are fragile under distributional shift.
+**Proof sketch:** `‖Φ − Id‖_F` controls the PAC-Bayes sharpness term [Dziugaite & Roy 2017; Foret et al. 2021]: a flat minimum is robust to small perturbations of `θ*`, giving tight train-to-test transfer. The `C_α⁻¹` factor penalizes noise-artifact minima — their existence depends on the specific noise structure of the training distribution, not on the true data-generating process, so they are fragile under distributional shift.
 
-**To complete the proof** (see §X.5): specify a Gaussian PAC-Bayes prior
-centred at $\theta^{*}$, show $\lVert \Phi - \mathrm{Id} \rVert_{F}$
-controls the KL divergence term, and show $C_{\alpha}$ controls the
-empirical risk term for noise-artifact minima.
+To complete the proof (§12.5): specify a Gaussian PAC-Bayes prior centered at `θ*`, show `‖Φ − Id‖_F` controls the KL divergence term, and show `C_α` controls the empirical risk term for noise-artifact minima.
 
-### 7.3  Flat Minima as Boolean Algebras ✓
+### 9.3 Flat Minima as Boolean Algebras ✓
 
-A minimum $\theta^{*}$ has a **flat basin** if and only if the interval
-$[\hat{0},\, B_{\theta^{*}}]$ in the basin poset is isomorphic to a
-Boolean algebra $B_{n} = 2^{[n]}$.
+A minimum `θ*` has a **flat basin** if and only if the interval `[0̂, B_{θ*}]` in the basin poset is isomorphic to a Boolean algebra `Bₙ = 2^[n]`.
 
-The Boolean algebra $B_{n}$ has Möbius function:
+The Boolean algebra `Bₙ` has Möbius function [Stanley 2012]:
 
-$$\mu(S, T) \;=\; (-1)^{\,|T \setminus S|}
-\qquad\text{for } S \subseteq T \subseteq [n]$$
+```
+μ(S, T)  =  (−1)^|T \ S|     for S ⊆ T ⊆ [n]
+```
 
-This is the **inclusion-exclusion formula** — the signature of
-*independent* curvature directions. Each parameter dimension contributes
-additively with no cross-coupling.
+This is the **inclusion-exclusion formula** — the signature of independent curvature directions. Each parameter dimension contributes additively with no cross-coupling.
 
-**Sharp minima** have non-Boolean intervals (specifically, intervals
-containing diamonds — pairs of elements with two distinct incomparable
-paths). These correspond to **entangled Hessian directions**: off-diagonal
-Hessian coupling that creates barriers in the loss landscape and resists
-escape.
+**Sharp minima** have non-Boolean intervals — specifically, intervals containing diamonds (pairs of elements with two distinct incomparable paths). These correspond to entangled Hessian directions: off-diagonal Hessian coupling that creates barriers in the loss landscape and resists escape [Hochreiter & Schmidhuber 1997].
 
 ---
 
-## VIII. Implementation and Live Diagnostics
+## 10. Implementation and Live Diagnostics
 
-All code runs with **PyTorch and NumPy only**. §8.3 runs with
-**pure Python** (no external packages).
+All code runs with PyTorch and NumPy only. §10.3 runs with pure Python (no external packages).
 
-### 8.1  Core Functions
+### 10.1 Core Functions
 
 ```python
 import torch
@@ -658,7 +535,7 @@ def consolidation_ratio(model, loss_fn, loader, n_samples=100, device="cpu"):
 
     Interpretation
     ──────────────
-    C_α > 2  :  CONVERGED       — true gradient fully recovered
+    C_α > 2  :  CONVERGED        — true gradient fully recovered
     C_α > 1  :  SIGNAL_DOMINATED — Möbius inversion active; generalising
     C_α ≈ 1  :  CRITICAL         — phase boundary; grokking may be imminent
     C_α < 1  :  NOISE_DOMINATED  — memorisation regime; inversion fails
@@ -667,7 +544,7 @@ def consolidation_ratio(model, loss_fn, loader, n_samples=100, device="cpu"):
     ──────
     This unweighted C_α is NOT strictly coordinate-invariant for
     non-orthogonal reparameterisations. Use the Fisher-weighted
-    variant C_α^F = μ_g^T F⁻¹ μ_g / Tr(F⁻¹ Σ_g) for invariant
+    variant C_α^F = μ_gᵀ F⁻¹ μ_g / Tr(F⁻¹ Σ_g) for invariant
     diagnostics when the Fisher matrix F is available.
     """
     model.eval()
@@ -690,22 +567,22 @@ def consolidation_ratio(model, loss_fn, loader, n_samples=100, device="cpu"):
         ])
         grads.append(g.cpu().numpy())
 
-    G  = np.stack(grads)                          # shape: (n_samples, d)
-    mu = G.mean(axis=0)                           # mean gradient  (signal)
-    Gc = G - mu                                   # centred samples
-    trace_sigma = float(np.sum(Gc ** 2) / (n_samples - 1))  # Tr(Σ)
+    G  = np.stack(grads)                           # shape: (n_samples, d)
+    mu = G.mean(axis=0)                            # mean gradient  (signal)
+    Gc = G - mu                                    # centred samples
+    trace_sigma = float(np.sum(Gc ** 2) / (n_samples - 1))   # Tr(Σ)
 
     if trace_sigma < 1e-12:
-        return float("inf")                       # pure signal, zero noise
+        return float("inf")                        # pure signal, zero noise
     return float(mu @ mu) / trace_sigma
 
 
 def mobius_phase(C_alpha):
     """Return (phase_label, description) for the current C_α value."""
     if   C_alpha < 0.5: return "NOISE_DOMINATED",  "Diffusive — inversion unrecoverable"
-    elif C_alpha < 1.0: return "APPROACHING",      "Near boundary — inversion unstable"
-    elif C_alpha < 2.0: return "SIGNAL_DOMINATED", "Möbius inversion active — generalising"
-    else:               return "CONVERGED",        "True gradient fully recovered"
+    elif C_alpha < 1.0: return "APPROACHING",       "Near boundary — inversion unstable"
+    elif C_alpha < 2.0: return "SIGNAL_DOMINATED",  "Möbius inversion active — generalising"
+    else:               return "CONVERGED",         "True gradient fully recovered"
 
 
 # ── Frobenius Norm via Hutchinson Estimator ────────────────────────────────
@@ -713,12 +590,12 @@ def mobius_phase(C_alpha):
 def frobenius_update_operator(model, loss_fn, loader, lr,
                                n_probes=20, device="cpu"):
     """
-    Estimate  ‖Φ − Id‖_F  =  ‖η · H‖_F  via Hutchinson's trace estimator.
+    Estimate ‖Φ − Id‖_F = ‖η·H‖_F via Hutchinson's trace estimator.
 
     Mathematical basis
     ──────────────────
-    For any matrix A:   ‖A‖_F²  =  E[ ‖Av‖² ]   where v ~ N(0, I).
-    With A = η·H:       ‖ηH‖_F² =  η² · E[ ‖Hv‖² ]
+    For any matrix A:   ‖A‖_F²  =  E[‖Av‖²]   where v ~ N(0, I).
+    With A = η·H:       ‖ηH‖_F² =  η² · E[‖Hv‖²]
 
     So we draw random unit vectors v, compute the Hessian-vector product
     Hv via two backward passes, and average ‖η·Hv‖².
@@ -726,7 +603,7 @@ def frobenius_update_operator(model, loss_fn, loader, lr,
     Computational cost
     ──────────────────
     n_probes × (1 forward + 2 backward passes).
-    n_probes = 20 gives ~5 % relative error for typical smooth losses.
+    n_probes = 20 gives ~5% relative error for typical smooth losses.
     """
     model.train()
     batch  = next(iter(loader))
@@ -752,10 +629,9 @@ def frobenius_update_operator(model, loss_fn, loader, lr,
     return float(np.mean(estimates) ** 0.5)
 ```
 
-### 8.2  Live Demo: MLP on Synthetic Data
+### 10.2 Live Demo: MLP on Synthetic Data
 
-Self-contained — generates its own data, trains a two-layer MLP, and
-prints Möbius diagnostics every 50 steps.
+Self-contained — generates its own data, trains a two-layer MLP, and prints Möbius diagnostics every 50 steps.
 
 ```python
 """
@@ -866,14 +742,11 @@ print("\nDone.  Watch C_alpha cross 1.0 as test accuracy improves.")
   300     0.0891     0.947     2.031    0.0318   0.00020  CONVERGED
 ```
 
-Notice: test accuracy improvement **tracks the C_alpha > 1 crossing**,
-not the training loss. The Möbius phase transition is the leading indicator.
+> **Notice:** test accuracy improvement tracks the `C_alpha > 1` crossing, not the training loss. The Möbius phase transition is the **leading indicator**.
 
-### 8.3  Exact Möbius Computation on a Small Poset
+### 10.3 Exact Möbius Computation on a Small Poset
 
-Pure Python, no dependencies. Computes the Möbius function for the
-four-basin diamond poset via the standard recurrence, then inverts an
-example accumulation.
+Pure Python, no dependencies. Computes the Möbius function for the four-basin diamond poset via the standard recurrence, then inverts an example accumulation.
 
 ```python
 """
@@ -892,86 +765,56 @@ Needs :  nothing beyond Python stdlib
 #       \  /
 #        B0   ← global minimum
 #
-#   Comparable pairs (reflexive + transitive closure):
-#
 comparable = {
-    (0, 0), (1, 1), (2, 2), (3, 3),   # reflexive
-    (0, 1), (0, 2),                    # B0 ≺ B1, B0 ≺ B2
-    (1, 3), (2, 3),                    # B1 ≺ B3, B2 ≺ B3
-    (0, 3),                            # B0 ≺ B3 (transitive)
+    (0,0),(1,1),(2,2),(3,3),   # reflexive
+    (0,1),(0,2),               # B0 ≺ B1, B0 ≺ B2
+    (1,3),(2,3),               # B1 ≺ B3, B2 ≺ B3
+    (0,3),                     # B0 ≺ B3 (transitive)
 }
 
 def elements_strictly_between(x, y):
-    """Return all z with x ≼ z ≺ y  (strictly below y, at or above x)."""
-    return [
-        z for z in range(4)
-        if (x, z) in comparable
-        and (z, y) in comparable
-        and z != y
-    ]
-
+    return [z for z in range(4)
+            if (x,z) in comparable and (z,y) in comparable and z != y]
 
 # ── Möbius recurrence ──────────────────────────────────────────────────────
-#
-#   μ(x, x)  = 1
-#   μ(x, y)  = − Σ_{x ≼ z ≺ y}  μ(x, z)      for x ≺ y
-#
 mu = {}
-
 for x in range(4):
-    mu[(x, x)] = 1                             # diagonal: always 1
+    mu[(x,x)] = 1
 
-for (x, y) in [(0,1), (0,2), (1,3), (2,3)]:   # rank-1 gaps (no interior)
-    mu[(x, y)] = -sum(mu[(x, z)]
-                      for z in elements_strictly_between(x, y))
+for (x,y) in [(0,1),(0,2),(1,3),(2,3)]:
+    mu[(x,y)] = -sum(mu[(x,z)] for z in elements_strictly_between(x,y))
 
-mu[(0, 3)] = -sum(mu[(0, z)]                   # rank-2 gap (diamond)
-                  for z in elements_strictly_between(0, 3))
-
+mu[(0,3)] = -sum(mu[(0,z)] for z in elements_strictly_between(0,3))
 
 # ── Print results ──────────────────────────────────────────────────────────
 print("Möbius values for the diamond poset:")
-for (x, y) in sorted(mu):
-    print(f"  μ(B{x}, B{y})  =  {mu[(x, y)]:+d}")
+for (x,y) in sorted(mu):
+    print(f"  μ(B{x}, B{y})  =  {mu[(x,y)]:+d}")
 
-print()
-print("Topology check via Hall's theorem  (augmented χ̃, so χ̃(∅) = −1):")
-print()
+print("\nTopology check via Hall's theorem (augmented χ̃, so χ̃(∅) = −1):")
 print("  Open interval (B0,B3) = {B1, B2}  ← two isolated vertices")
-print("  χ̃ = (number of vertices) + (−1)  =  2 + (−1)  =  +1")
+print("  χ̃ = 2 + (−1) = +1")
 print(f"  μ(B0, B3) = {mu[(0,3)]}  ✓")
 
-print()
-print("Möbius inversion example:")
-print("  Suppose the TRUE per-basin gradient contributions are  f = [1, 1, 1, 1].")
-print("  The ACCUMULATED sums that SGD observes are:")
-print("    g(B0) = f(B0)                      = 1")
-print("    g(B1) = f(B0) + f(B1)              = 2")
-print("    g(B2) = f(B0) + f(B2)              = 2")
-print("    g(B3) = f(B0) + f(B1) + f(B2) + f(B3) = 4")
+print("\nMöbius inversion example:")
+print("  TRUE per-basin contributions: f = [1, 1, 1, 1]")
+print("  ACCUMULATED sums SGD observes:")
+print("    g(B0) = 1,  g(B1) = 2,  g(B2) = 2,  g(B3) = 4")
 
-g = {0: 1, 1: 2, 2: 2, 3: 4}
-
+g = {0:1, 1:2, 2:2, 3:4}
 recovered = {
-    y: sum(
-        mu.get((x, y), 0) * g[x]
-        for x in range(4)
-        if (x, y) in comparable
-    )
+    y: sum(mu.get((x,y),0) * g[x]
+           for x in range(4) if (x,y) in comparable)
     for y in range(4)
 }
 
-print()
-print("  Applying Möbius inversion  f(y) = Σ_{x ≼ y} μ(x,y) · g(x):")
+print("\n  Applying f(y) = Σ_{x≼y} μ(x,y)·g(x):")
 for y in range(4):
-    terms = [
-        f"μ(B{x},B{y})·g(B{x}) = {mu.get((x,y),0):+d}·{g[x]}"
-        for x in range(4) if (x, y) in comparable
-    ]
-    print(f"    f(B{y}) = {' + '.join(terms)}  =  {recovered[y]}")
+    terms = [f"μ(B{x},B{y})·g(B{x})={mu.get((x,y),0):+d}·{g[x]}"
+             for x in range(4) if (x,y) in comparable]
+    print(f"    f(B{y}) = {' + '.join(terms)} = {recovered[y]}")
 
-print()
-print(f"  Recovered: {list(recovered.values())}  (should be [1, 1, 1, 1])  ✓")
+print(f"\n  Recovered: {list(recovered.values())}  (should be [1,1,1,1])  ✓")
 ```
 
 **Output:**
@@ -988,61 +831,49 @@ Möbius values for the diamond poset:
   μ(B2, B3)  =  -1
   μ(B3, B3)  =  +1
 
-Topology check via Hall's theorem  (augmented χ̃, so χ̃(∅) = −1):
-
+Topology check via Hall's theorem (augmented χ̃, so χ̃(∅) = −1):
   Open interval (B0,B3) = {B1, B2}  ← two isolated vertices
-  χ̃ = (number of vertices) + (−1)  =  2 + (−1)  =  +1
+  χ̃ = 2 + (−1) = +1
   μ(B0, B3) = 1  ✓
 
 Möbius inversion example:
-  Suppose the TRUE per-basin gradient contributions are  f = [1, 1, 1, 1].
-  The ACCUMULATED sums that SGD observes are:
-    g(B0) = f(B0)                          = 1
-    g(B1) = f(B0) + f(B1)                  = 2
-    g(B2) = f(B0) + f(B2)                  = 2
-    g(B3) = f(B0) + f(B1) + f(B2) + f(B3) = 4
+  TRUE per-basin contributions: f = [1, 1, 1, 1]
+  ACCUMULATED sums SGD observes:
+    g(B0) = 1,  g(B1) = 2,  g(B2) = 2,  g(B3) = 4
 
-  Applying Möbius inversion  f(y) = Σ_{x ≼ y} μ(x,y) · g(x):
-    f(B0) = μ(B0,B0)·g(B0) = +1·1  =  1
-    f(B1) = μ(B0,B1)·g(B0) + μ(B1,B1)·g(B1) = -1·1 + +1·2  =  1
-    f(B2) = μ(B0,B2)·g(B0) + μ(B2,B2)·g(B2) = -1·1 + +1·2  =  1
-    f(B3) = μ(B0,B3)·g(B0) + μ(B1,B3)·g(B1) + μ(B2,B3)·g(B2) + μ(B3,B3)·g(B3)
-          = +1·1 + -1·2 + -1·2 + +1·4  =  1
+  Applying f(y) = Σ_{x≼y} μ(x,y)·g(x):
+    f(B0) = μ(B0,B0)·g(B0)=+1·1 = 1
+    f(B1) = μ(B0,B1)·g(B0)=-1·1 + μ(B1,B1)·g(B1)=+1·2 = 1
+    f(B2) = μ(B0,B2)·g(B0)=-1·1 + μ(B2,B2)·g(B2)=+1·2 = 1
+    f(B3) = μ(B0,B3)·g(B0)=+1·1 + μ(B1,B3)·g(B1)=-1·2
+          + μ(B2,B3)·g(B2)=-1·2 + μ(B3,B3)·g(B3)=+1·4 = 1
 
   Recovered: [1, 1, 1, 1]  ✓
 ```
 
 ---
 
-## IX. Topological Structure of the Loss Landscape
+## 11. Topological Structure of the Loss Landscape
 
-### 9.1  Hall's Theorem ✓
+### 11.1 Hall's Theorem ✓
 
-For the **order complex** $\Delta[x,y]$ — the simplicial complex whose
-simplices are finite chains in the open interval $(x, y)$ — we have:
+For the **order complex** `Δ[x,y]` — the simplicial complex whose simplices are finite chains in the open interval `(x,y)` — we have [Hall 1935]:
 
-$$\mu(x, y)
-  \;=\;
-  \tilde{\chi}\!\left(\Delta[x, y]\right)$$
+```
+μ(x, y)  =  χ̃(Δ[x,y])
+```
 
-where $\tilde{\chi}$ is the **augmented reduced Euler characteristic**
-(convention: $\tilde{\chi}(\emptyset) = -1$).
+where `χ̃` is the augmented reduced Euler characteristic (convention: `χ̃(∅) = −1`).
 
-This is Philip Hall's theorem (1935): the bridge from the algebra of the
-incidence algebra to the topology of the basin complex.
+This is **Philip Hall's theorem (1935)**: the bridge from the algebra of the incidence algebra to the topology of the basin complex.
 
-**Worked examples** (verified computationally in §8.3):
+**Worked examples** (verified computationally in §10.3):
 
-| Open interval content | Order complex | $\tilde{\chi}$ | $\mu(x,y)$ | Learning meaning |
+| Open interval content | Order complex | χ̃ | μ(x,y) | Learning meaning |
 |---|---|---|---|---|
-| $\emptyset$ (rank-1 pair) | Empty complex | $-1$ | $-1$ | Adjacent basins subtract |
-| $\{z\}$ (rank-2 chain) | One isolated vertex | $\;0$ | $\;0$ | Interior basin cancels |
-| $\{z_{1}, z_{2}\}$ incomparable (diamond) | Two isolated vertices | $+1$ | $+1$ | Parallel paths reinforce |
-
-For the diamond poset:
-- Open interval $(B_{0}, B_{3}) = \{B_{1}, B_{2}\}$
-- Two isolated vertices: $\tilde{\chi} = 2 + (-1) = 1$
-- Therefore $\mu(B_{0}, B_{3}) = +1$ ✓
+| ∅ (rank-1 pair) | Empty complex | −1 | −1 | Adjacent basins subtract |
+| `z` (rank-2 chain) | One isolated vertex | 0 | 0 | Interior basin cancels |
+| `z₁, z₂` incomparable (diamond) | Two isolated vertices | +1 | +1 | Parallel paths reinforce |
 
 ```
   HOW BASIN TOPOLOGY SHAPES THE MÖBIUS FUNCTION
@@ -1057,58 +888,44 @@ For the diamond poset:
                  (two parallel paths reinforce)
 
   Long chain:    B0 ─ B1 ─ B2 ─ B3
-                 μ(B0,B3) = alternating sum = 0 (even chain length)
-                           or -1 (odd chain length)
+                 μ(B0,B3) = alternating sum
+                           = 0  (even chain length)
+                           = -1 (odd chain length)
 ```
 
-### 9.2  The Crosscut Theorem ✓
+### 11.2 The Crosscut Theorem ✓
 
-For any $x \prec y$, let $C$ be a **crosscut** — a maximal antichain
-in the open interval $(x, y)$. Then:
+For any `x ≺ y`, let `C` be a **crosscut** — a maximal antichain in the open interval `(x,y)`. Then [Stanley 2012, Chapter 3]:
 
-$$\mu(x, y)
-  \;=\;
-  \sum_{k \,\geq\, 0} (-1)^{k}\, N_{k}(C)$$
+```
+μ(x, y)  =  Σ_{k≥0}  (−1)ᵏ · Nₖ(C)
+```
 
-where $N_{k}(C)$ is the number of $k$-element subsets of $C$ that have
-a common lower bound in $(x, y)$.
+where `Nₖ(C)` is the number of `k`-element subsets of `C` that have a common lower bound in `(x,y)`.
 
-**Learning meaning**: Saddle points between two basins form a natural
-crosscut. The alternating sum over subsets of saddles counts whether
-the saddle structure as a whole aids or impedes gradient inversion.
-An even number of independent saddle paths cancel; an odd number produces
-a net contribution of $\pm 1$.
+**Learning meaning:** Saddle points between two basins form a natural crosscut. The alternating sum over subsets of saddles counts whether the saddle structure as a whole aids or impedes gradient inversion. An even number of independent saddle paths cancel; an odd number produces a net contribution of `±1`.
 
 ---
 
-## X. Future Work
+## 12. Future Work
 
-### 10.1  Formalising the $C_{\alpha} = 1$ Phase Transition
+### 12.1 Formalizing the C_α = 1 Phase Transition ⚠️
 
-**Gap**: The proof sketch in §5.3 treats $C_{\alpha}$ as a fixed
-parameter. We need it to hold dynamically.
+**Gap:** The proof sketch in §7.3 treats `C_α` as a fixed parameter. We need it to hold dynamically.
 
-**Approach**: Cast the running Möbius sum
+**Approach:** Cast the running Möbius sum
 
-$$M_{n} \;=\; \sum_{k \leq n} \mu(k, n)\, F_{k}$$
+```
+Mₙ  =  Σ_{k≤n}  μ(k, n) · Fₖ
+```
 
-as an $L^{2}$ martingale under SGD with Robbins–Monro step sizes.
-The $C_{\alpha} > 1$ condition then appears as the **Novikov condition**
-ensuring the exponential martingale $\mathcal{E}(M)_{n}$ is uniformly
-integrable. Applying the martingale convergence theorem gives
-$M_{n} \to L_{\mathrm{true}}$ in $L^{2}$.
+as an `L²` martingale under SGD with Robbins–Monro step sizes [Robbins & Monro 1951]. The `C_α > 1` condition then appears as the **Novikov condition** ensuring the exponential martingale `E(M)ₙ` is uniformly integrable. Applying the martingale convergence theorem gives `Mₙ → L_true` in `L²`.
 
-### 10.2  Euler Characteristics via Persistent Homology
+### 12.2 Euler Characteristics via Persistent Homology ⚠️
 
-**Goal**: Compute $\mu(B_{i}, B_{j}) = \tilde{\chi}(\Delta[B_{i}, B_{j}])$
-from loss surface samples — without enumerating all saddle points.
+**Goal:** Compute `μ(Bᵢ, Bⱼ) = χ̃(Δ[Bᵢ, Bⱼ])` from loss surface samples — without enumerating all saddle points.
 
-**Method**: Sublevel-set persistent homology on the loss surface
-gives a persistence diagram. Each bar $(b_{k}, d_{k})$ at dimension $k$
-corresponds to a topological feature born at loss value $b_{k}$ and
-dying at $d_{k}$. Counting features born and dying within each
-loss interval $(\bar{L}(\theta^{*}_{i}),\, \bar{L}(\theta^{*}_{j}))$
-gives the Betti numbers of the order complex, hence $\tilde{\chi}$.
+**Method:** Sublevel-set persistent homology on the loss surface [Edelsbrunner & Harer 2010] gives a persistence diagram. Each bar `(bₖ, dₖ)` at dimension `k` corresponds to a topological feature born at loss value `bₖ` and dying at `dₖ`. Counting features born and dying within each loss interval `(L̄(θ*ᵢ), L̄(θ*ⱼ))` gives the Betti numbers of the order complex, hence `χ̃`.
 
 ```
   ALGORITHM SKETCH (requires gudhi or ripser):
@@ -1142,7 +959,7 @@ def mobius_via_persistent_homology(loss_samples, threshold_pairs):
     dict mapping (L_lo, L_hi) → estimated μ value
     """
     rips = gudhi.RipsComplex(
-        points=loss_samples[:, :-1],   # θ coordinates only
+        points=loss_samples[:, :-1],
         max_edge_length=0.5
     )
     st = rips.create_simplex_tree(max_dimension=2)
@@ -1155,191 +972,170 @@ def mobius_via_persistent_homology(loss_samples, threshold_pairs):
             if L_lo < birth < L_hi and (death == float("inf") or death < L_hi):
                 if dim < 3:
                     betti[dim] += 1
-        # Augmented reduced Euler characteristic: subtract 1 for the empty face
         chi_tilde = betti[0] - betti[1] + betti[2] - 1
         results[(L_lo, L_hi)] = chi_tilde
     return results
 ```
 
-**Expected impact**: Makes $\mu(B_{i}, B_{j})$ computationally accessible
-for real neural networks — a major step toward empirical validation of
-the entire framework.
+**Expected impact:** Makes `μ(Bᵢ, Bⱼ)` computationally accessible for real neural networks — a major step toward empirical validation of the entire framework.
 
-### 10.3  Classification of Basin Posets
+### 12.3 Classification of Basin Posets ⚠️
 
-**Conjecture**: For generic smooth $\bar{L}$ (Morse condition), the basin
-poset is **graded** (all maximal chains between any two elements have the
-same length) and **thin** (every rank-2 interval has exactly 4 elements).
+**Conjecture:** For generic smooth `L̄` (Morse condition), the basin poset is **graded** (all maximal chains between any two elements have the same length) and **thin** (every rank-2 interval has exactly 4 elements).
 
-If true, $\mu(x, y) = (-1)^{\,\mathrm{rank}(y) - \mathrm{rank}(x)}$
-universally for Morse losses — a maximally simple Möbius function.
-All deviations from this formula signal non-Morse (degenerate) basin
-structure: exactly the structure created by overparameterisation and ReLU
-activations that makes neural network landscapes interesting and difficult.
+If true, `μ(x,y) = (−1)^{rank(y)−rank(x)}` universally for Morse losses — a maximally simple Möbius function. All deviations from this formula signal non-Morse (degenerate) basin structure: exactly the structure created by overparameterization and ReLU activations.
 
-### 10.4  Grokking Universality Class
+### 12.4 Grokking Universality Class ⚠️
 
-**Experiment**: Near the grokking epoch $t_{c}$, measure whether
+**Experiment:** Near the grokking epoch `t_c`, measure whether:
 
-$$C_{\alpha}(t) - 1 \;\sim\; (t - t_{c})^{\,\beta}$$
+```
+C_α(t) − 1  ~  (t − t_c)^β
+```
 
-for a universal exponent $\beta$ across seeds, tasks, and architectures.
+for a universal exponent `β` across seeds, tasks, and architectures.
 
-| Universality class | Predicted $\beta$ | Interpretation |
+| Universality class | Predicted `β` | Interpretation |
 |---|---|---|
-| Mean-field Ising | $1/2$ | Long-range connectivity in basin poset |
-| Directed percolation (1+1d) | ~$0.276$ | Connectivity transition in basin graph |
-| KPZ | $1/3$ | Growing interface between basin regions |
+| Mean-field Ising | 1/2 | Long-range connectivity in basin poset |
+| Directed percolation (1+1d) | ~0.276 | Connectivity transition in basin graph |
+| KPZ | 1/3 | Growing interface between basin regions |
 
-### 10.5  Formal Proof of the Generalisation Bound
+### 12.5 Formal Proof of the Generalization Bound ⚠️
 
-Complete the PAC-Bayes argument:
+Complete the PAC-Bayes argument [Dziugaite & Roy 2017]:
 
-1. Specify prior $\mathcal{N}(\theta^{*},\, \sigma^{2} I)$ centred at
-   candidate minimum
-2. Show $\mathrm{KL}(Q \| P) \lesssim \lVert\Phi - \mathrm{Id}\rVert_{F}^{2} / \sigma^{2}$
-3. Show $C_{\alpha}$ controls the excess risk from noise-artifact minima
-4. Optimise $\sigma$ to recover
-   $\mathcal{G} \lesssim \lVert\Phi - \mathrm{Id}\rVert_{F} / (\sqrt{n_{\mathrm{train}}} \cdot C_{\alpha})$
+1. Specify prior `N(θ*, σ²I)` centered at candidate minimum
+2. Show `KL(Q‖P) ≲ ‖Φ − Id‖_F² / σ²`
+3. Show `C_α` controls the excess risk from noise-artifact minima
+4. Optimize `σ` to recover `G ≲ ‖Φ − Id‖_F / (n_train · C_α)`
 
 ---
 
-## XI. Known Weaknesses
+## 13. Known Weaknesses
 
 ```
   ┌──────────────────────────────────┬──────────────┬─────────────────────────────┐
   │ Claim                            │ Status       │ What is missing             │
   ├──────────────────────────────────┼──────────────┼─────────────────────────────┤
-  │ C_α > 1 ↔ inversion converges   │ Conjecture   │ Martingale / Robbins-Monro  │
-  │                                  │              │ proof (§10.1)               │
+  │ C_α > 1 ↔ inversion converges   │ ⚠️ Conjecture │ Martingale / Robbins-Monro  │
+  │                                  │              │ proof (§12.1)               │
   ├──────────────────────────────────┼──────────────┼─────────────────────────────┤
-  │ C_α is coordinate-invariant      │ FALSE as     │ Use Fisher-weighted C_α^F   │
-  │                                  │ stated       │ for true invariance (§5.2)  │
+  │ C_α is coordinate-invariant      │ ✗ FALSE      │ Use Fisher-weighted C_α^F   │
+  │                                  │ as stated    │ for true invariance (§7.2)  │
   ├──────────────────────────────────┼──────────────┼─────────────────────────────┤
   │ Frobenius is the natural framing │ Analogy, not │ Banach equally valid;       │
   │                                  │ isomorphism  │ Frobenius adds zeta counting│
   ├──────────────────────────────────┼──────────────┼─────────────────────────────┤
-  │ Generalisation bound             │ Conjecture   │ Full PAC-Bayes proof (§10.5)│
+  │ Generalization bound             │ ⚠️ Conjecture │ Full PAC-Bayes proof (§12.5)│
   ├──────────────────────────────────┼──────────────┼─────────────────────────────┤
   │ Basin poset is locally finite    │ Assumed      │ Non-Morse / ReLU case needs │
   │                                  │              │ separate treatment          │
   ├──────────────────────────────────┼──────────────┼─────────────────────────────┤
-  │ Phase table in §6.3              │ Illustrative │ Need actual C_α measurements│
+  │ Phase table in §8.3              │ Illustrative │ Need actual C_α measurements│
   │                                  │              │ on published grokking runs  │
   ├──────────────────────────────────┼──────────────┼─────────────────────────────┤
-  │ Euler product factorisation      │ Unverified   │ Needs empirical test of     │
+  │ Euler product factorization      │ ⚠️ Unverified │ Needs empirical test of     │
   │                                  │              │ basin independence           │
   └──────────────────────────────────┴──────────────┴─────────────────────────────┘
 ```
 
 ---
 
-## XII. Central Result (Consolidated)
+## 14. Central Result
 
-**Theorem** (Möbius–Frobenius Generalisation):
+**Theorem (Möbius–Frobenius Generalization)**
 
-Let $\Phi$ be the SGD update operator. Let $(\mathrm{Fix}(\Phi),\, \preceq)$
-be the basin poset with Möbius function $\mu$. Let $C_{\alpha}$ be the
-consolidation ratio at fixed point $\theta^{*}$.
+Let `Φ` be the SGD update operator. Let `(Fix(Φ), ≼)` be the basin poset with Möbius function `μ`. Let `C_α` be the consolidation ratio at fixed point `θ*`.
 
 | # | Statement | Status |
-|---|-----------|--------|
-| 1 | $\mu(B_{i}, B_{j}) = \tilde{\chi}(\Delta[B_{i}, B_{j}])$: Möbius equals Euler char of saddle complex | ✓ Hall (1935) |
-| 2 | $\mu$ is the **unique** exact inversion formula for the basin incidence algebra | ✓ Rota (1964) |
-| 3 | $\theta^{*}$ is a true minimum iff $C_{\alpha} > 1$ (Möbius inversion converges in $L^{2}$) | ⚠️ Conjecture |
-| 4 | $\mathcal{G}(\theta^{*}) \lesssim \lVert\Phi - \mathrm{Id}\rVert_{F} \,/\, (\sqrt{n_{\mathrm{train}}} \cdot C_{\alpha})$ | ⚠️ Conjecture |
-| 5 | The $C_{\alpha} = 1$ boundary is a genuine phase transition explaining grokking | ⚠️ Conjecture |
+|---|---|---|
+| 1 | `μ(Bᵢ, Bⱼ) = χ̃(Δ[Bᵢ, Bⱼ])`: Möbius equals Euler char of saddle complex | ✓ Hall (1935) |
+| 2 | `μ` is the unique exact inversion formula for the basin incidence algebra | ✓ Rota (1964) |
+| 3 | `θ*` is a true minimum iff `C_α > 1` (Möbius inversion converges in L²) | ⚠️ Conjecture |
+| 4 | `G(θ*) ≲ ‖Φ − Id‖_F / (n_train · C_α)` | ⚠️ Conjecture |
+| 5 | The `C_α = 1` boundary is a genuine phase transition explaining grokking | ⚠️ Conjecture |
 
-Rows 1–2 are proven. Rows 3–5 constitute the research programme.
+**Rows 1–2 are proven. Rows 3–5 constitute the research programme.**
 
 ---
 
-## Appendix A: Correspondence Table
+## 15. Appendices
+
+### Appendix A: Correspondence Table
 
 | Neural network learning | Arithmetic / combinatorial algebra |
 |---|---|
-| Gradient $\nabla L(\theta)$ | Arithmetic function $f : P \to \mathbb{R}$ |
-| Noisy accumulated gradient | Summatory function $F = f * \zeta$ |
-| Recovering true gradient | Möbius inversion: $f = F * \mu$ |
-| Basin of attraction $B_{i}$ | Element of the poset $P$ |
-| Local minimum $\theta^{*}_{i}$ | Frobenius fixed point: $\mathbb{E}[\Phi(\theta^{*}_{i})] = \theta^{*}_{i}$ |
-| Memorisation minimum | Noise-artifact fixed point ($C_{\alpha} < 1$) |
-| Generalising minimum | True fixed point ($C_{\alpha} > 1$) |
-| Grokking | Phase transition at $C_{\alpha} = 1$ |
+| Gradient `∇L(θ)` | Arithmetic function `f : P → R` |
+| Noisy accumulated gradient | Summatory function `F = f * ζ` |
+| Recovering true gradient | Möbius inversion: `f = F * μ` |
+| Basin of attraction `Bᵢ` | Element of the poset `P` |
+| Local minimum `θ*ᵢ` | Frobenius fixed point: `E[Φ(θ*ᵢ)] = θ*ᵢ` |
+| Memorization minimum | Noise-artifact fixed point (`C_α < 1`) |
+| Generalizing minimum | True fixed point (`C_α > 1`) |
+| Grokking | Phase transition at `C_α = 1` |
 | Flat minimum | Boolean interval in basin poset |
 | Sharp minimum | Diamond (non-Boolean) interval |
 | Saddle point | Crosscut in poset interval |
-| Generalisation gap | $\lVert\Phi - \mathrm{Id}\rVert_{F} / (\sqrt{n_{\mathrm{train}}} \cdot C_{\alpha})$ |
-| Regularisation | Truncation of the Dirichlet series $\mathcal{L}(s)$ |
-| Training plateau | Non-convergence of the running Möbius sum $M_{n}$ |
+| Generalization gap | `‖Φ − Id‖_F / (n_train · C_α)` |
+| Regularization | Truncation of the Dirichlet series `L(s)` |
+| Training plateau | Non-convergence of the running Möbius sum `Mₙ` |
 
----
+### Appendix B: Notation Reference
 
-## Appendix B: LaTeX Notation Reference
-
-All multi-level scripts in this document use explicit braces to avoid
-ambiguity. The following substitutions are applied throughout:
+All multi-level scripts use explicit braces to avoid ambiguity:
 
 | Ambiguous form | Correct form | Reason |
 |---|---|---|
-| `\theta_i^*` | `\theta^{*}_{i}` | Superscript $*$ listed first; both levels braced |
+| `\theta_i^*` | `\theta^{*}_{i}` | Superscript `*` listed first; both levels braced |
 | `n_\mathrm{train}` | `n_{\mathrm{train}}` | Compound subscript requires braces |
 | `C_\alpha^F` | `C_{\alpha}^{F}` | Both scripts need braces for clarity |
 | `\lambda_\max` | `\lambda_{\max}` | Compound subscript — braces required |
 | `B_i` | `B_{i}` | All indexed symbols use braces |
 
----
+### Appendix C: Quick Reference — C_α Phases
 
-## References
-
-1. **Rota, G.-C.** (1964). "On the Foundations of Combinatorial Theory I:
-   Theory of Möbius Functions."
-   *Zeitschrift für Wahrscheinlichkeitstheorie*, 2(4), 340–368.
-   — Möbius inversion on posets; uniqueness theorem.
-
-2. **Hall, P.** (1935). "On Representatives of Subsets."
-   *Journal of the London Mathematical Society*, 10(1), 26–30.
-   — $\mu(x,y) = \tilde{\chi}(\Delta[x,y])$.
-
-3. **Stanley, R.** (2012). *Enumerative Combinatorics*, Vol. 1, 2nd ed.
-   Cambridge University Press.
-   — Incidence algebras, Crosscut theorem: Chapter 3.
-
-4. **Hochreiter, S. & Schmidhuber, J.** (1997). "Flat Minima."
-   *Neural Computation*, 9(1), 1–42.
-
-5. **Power, A., Anand, Y., Mosconi, A., Kaiser, Ł., & Polosukhin, I.**
-   (2022). "Grokking: Generalization Beyond Overfitting on Small
-   Algorithmic Datasets." *ICLR 2022*.
-
-6. **Amari, S.** (1998). "Natural Gradient Works Efficiently in Learning."
-   *Neural Computation*, 10(2), 251–276.
-
-7. **Dziugaite, G. K. & Roy, D. M.** (2017). "Computing Nonvacuous
-   Generalization Bounds for Deep (Stochastic) Neural Networks with Many
-   Parameters." *UAI 2017*.
-
-8. **Foret, P., Kleiner, A., Mobahi, H., & Neyshabur, B.** (2021).
-   "Sharpness-Aware Minimization for Efficiently Improving Generalization."
-   *ICLR 2021*.
-
-9. **Robbins, H. & Monro, S.** (1951). "A Stochastic Approximation Method."
-   *Annals of Mathematical Statistics*, 22(3), 400–407.
-
-10. **Milnor, J.** (1963). *Morse Theory*. Princeton University Press.
-    — Critical point theory; graded basin structure.
-
-11. **Edelsbrunner, H. & Harer, J.** (2010). *Computational Topology*.
-    American Mathematical Society.
-    — Persistent homology for loss surface analysis.
-
-12. **Weil, A.** (1949). "Numbers of Solutions of Equations in Finite
-    Fields." *Bulletin of the AMS*, 55(5), 497–508.
-    — Frobenius in arithmetic geometry; zeta functions.
-
+```
+  C_α          Phase               Action
+  ──────────────────────────────────────────────────────────
+  < 0.5        NOISE_DOMINATED     Increase data or batch size
+  0.5 – 1.0    APPROACHING         Monitor closely; near transition
+  1.0 – 2.0    SIGNAL_DOMINATED    Generalization active; continue
+  > 2.0        CONVERGED           True gradient fully recovered
+  ──────────────────────────────────────────────────────────
+```
 
 ---
 
-*Optimisation is an inversion problem.
-The question is always: inversion of what, by what formula, on what domain?
-On a locally finite poset, the domain determines the answer uniquely.*
+## 16. References
+
+### Foundational Combinatorics and Algebra
+- **Hall, P.** (1935). "On Representatives of Subsets." *Journal of the London Mathematical Society*, 10(1), 26–30. — `μ(x,y) = χ̃(Δ[x,y])`: the topological interpretation of the Möbius function.
+- **Rota, G.-C.** (1964). "On the Foundations of Combinatorial Theory I: Theory of Möbius Functions." *Zeitschrift für Wahrscheinlichkeitstheorie*, 2(4), 340–368. — Möbius inversion on posets; uniqueness theorem.
+- **Stanley, R.** (2012). *Enumerative Combinatorics, Vol. 1*, 2nd ed. Cambridge University Press. — Incidence algebras, Crosscut theorem: Chapter 3.
+
+### Topology
+- **Milnor, J.** (1963). *Morse Theory*. Princeton University Press. — Critical point theory; graded basin structure; finitely many critical points between level sets.
+- **Edelsbrunner, H. & Harer, J.** (2010). *Computational Topology*. American Mathematical Society. — Persistent homology for loss surface analysis.
+
+### Arithmetic Geometry
+- **Weil, A.** (1949). "Numbers of Solutions of Equations in Finite Fields." *Bulletin of the AMS*, 55(5), 497–508. — Frobenius endomorphism in arithmetic geometry; zeta functions over finite fields.
+
+### Optimization and Learning Theory
+- **Robbins, H. & Monro, S.** (1951). "A Stochastic Approximation Method." *Annals of Mathematical Statistics*, 22(3), 400–407. — Convergence conditions `Σηₙ = ∞`, `Ση²ₙ < ∞`.
+- **Amari, S.** (1998). "Natural Gradient Works Efficiently in Learning." *Neural Computation*, 10(2), 251–276. — Fisher information matrix; coordinate-invariant gradient.
+- **Hochreiter, S. & Schmidhuber, J.** (1997). "Flat Minima." *Neural Computation*, 9(1), 1–42. — Sharp vs. flat minima; generalization implications.
+
+### Generalization Bounds
+- **Dziugaite, G. K. & Roy, D. M.** (2017). "Computing Nonvacuous Generalization Bounds for Deep (Stochastic) Neural Networks with Many Parameters." *UAI 2017*. — PAC-Bayes framework for deep networks.
+- **Foret, P., Kleiner, A., Mobahi, H., & Neyshabur, B.** (2021). "Sharpness-Aware Minimization for Efficiently Improving Generalization." *ICLR 2021*. — Sharpness as generalization proxy.
+
+### Grokking
+- **Power, A., Anand, Y., Mosconi, A., Kaiser, Ł., & Polosukhin, I.** (2022). "Grokking: Generalization Beyond Overfitting on Small Algorithmic Datasets." *ICLR 2022*. — Empirical characterization of the grokking phenomenon.
+
+---
+
+*Möbius–Frobenius Framework — Canonical Specification v1.0*
+
+*Built on: Rota (1964) · Hall (1935) · Stanley (2012) · Milnor (1963) · Weil (1949) · Robbins & Monro (1951)*
+
