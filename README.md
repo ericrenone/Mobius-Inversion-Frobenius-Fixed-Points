@@ -1,1 +1,1 @@
-# M-bius-Inversion-Frobenius-Fixed-Points
+# Mobius-Inversion-Frobenius-Fixed-Points
