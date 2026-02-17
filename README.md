@@ -1,6 +1,6 @@
 # Möbius Inversion on Frobenius Fixed Points
 
-> ⚠️ Not Established
+> ⚠️ = Not Established
 
 > Established results (Hall 1935, Rota 1964) are labelled ✓.
 
