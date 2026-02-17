@@ -1,6 +1,7 @@
 # Möbius Inversion on Frobenius Fixed Points
 
-> ⚠️ **Proof status**: Claims labelled ⚠️ are conjectures with proof sketches.
+> ⚠️ Not Established
+
 > Established results (Hall 1935, Rota 1964) are labelled ✓.
 
 ---
